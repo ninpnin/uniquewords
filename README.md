@@ -1,6 +1,5 @@
 # Words Frequency cli
 
-CLI for calculating word frequencies in Scala Native.
+CLI for calculating word frequencies in Scala Native. Built with mill.
 
-Usage:
-
+TODO: Document CLI usage

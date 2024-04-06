@@ -47,7 +47,11 @@ object CliApp {
     .mapValues(_.size)
     .toMap
   }
-  def splitGroupGetFreqs(lines: Seq[String]) = {
+
+  // This is done procedurally since the functional way creates a lot of
+  // arrays, and the garbage collector doesn't like it on large data sets
+  def tokenizeChunkGetWordCounts(lines: Seq[String]) = {
+    Console.err.println("")
     var result = Buffer[Map[String, Int]]()
     val chunkSize = 1000000
     var b = Buffer[String]()
@@ -89,14 +93,11 @@ object CliApp {
   def fileFreqMap(filename: String) = {
     Console.err.println("Get lines from file " + filename + " ...")
     val lines = fileLines(filename)
-    Console.err.println("Process to get words ...")
-    //val words = lines(0).split(' ')
-    // Group words to limit memory usage
-    Console.err.println("Group words...")
-    val frequencyMaps = splitGroupGetFreqs(lines)
+    Console.err.println("Split, clean, and calculate word counts ...")
+    val wordCountMaps = tokenizeChunkGetWordCounts(lines)
     //val groupedWords = words.grouped(100000)
-    Console.err.println("Create word count maps...")
-    reduceSumMaps(frequencyMaps)
+    Console.err.println("Merge word count maps ...")
+    reduceSumMaps(wordCountMaps)
   }
   def fileWords(files: Seq[String]) = {
     val maps = files.map(file =>
@@ -124,13 +125,14 @@ object CliApp {
     def getOptions(flag: String): List[String] = getOptionList(flag, identity)
     
     val inFiles = getPlainOptions
-    Console.err.println("Infiles: " + inFiles.reduceLeft(_ + ", " + _))
     val number = getOptions("--n").map(_.toInt).headOption.getOrElse(20)
     val frequencies = fileWords(inFiles)
     val top2000 = frequencies
                   .toVector
                   .sortBy(wd => -wd._2)
                   .take(number)
+
+    Console.err.println("Format as JSON ...")
     val top20formatted = formatToJson(top2000.toMap, 4)
     println(top20formatted)
   }

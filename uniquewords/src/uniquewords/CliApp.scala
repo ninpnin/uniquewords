@@ -6,11 +6,44 @@ import scala.reflect.ClassTag
 
 object CliApp {
   val alphabet = (('a' to 'z') ++ Vector('ä', 'ö', 'å')).toSet
-  def fileWords(files: Seq[String]) = {
-    files.flatMap(file =>
-      Source
-      .fromFile(file)
-      .getLines
+
+  def reduceSumMaps(maps: Seq[Map[String, Int]]) = {
+    def sumMaps(m1: Map[String, Int], m2: Map[String, Int]) = {
+      val merged = m1.toSeq ++ m2.toSeq
+      val grouped = merged.groupBy(_._1)
+      grouped.mapValues(_.map(_._2).toList.sum).toMap
+    }
+    maps.reduceLeft( (x,y) => sumMaps(x,y))
+  }
+
+  def linesWithCodec(filename: String, codec: String): Option[Seq[String]] = {
+    var result: Option[Seq[String]] = None
+    try {
+      result = Some(Source.fromFile(filename)(codec).getLines.toVector)
+    } catch {
+      case _ : Throwable => println("Error parsing: " + filename + ", codec: " + codec)
+    }
+    result
+  }
+  def fileLines(filename: String) = {
+    var lines = linesWithCodec(filename, "UTF-8")
+    if (lines == None) linesWithCodec(filename, "ISO-8859-1")
+    val outlines = lines.getOrElse(Vector())
+    if (lines == None) {
+      println("Parsing failed.")
+    } else {
+      println("Parsing successful. Lines read: " + outlines.length)
+    }
+    outlines
+  }
+  def wordMap(words: Seq[String]) = {
+    words
+    .groupBy(identity)
+    .mapValues(_.size)
+    .toMap
+  }
+  def fileFreqMap(filename: String) = {
+    val lines = fileLines(filename)
       .flatMap(line =>
         line
         .split(" ")
@@ -19,13 +52,13 @@ object CliApp {
         .filter(word => word.length >= 1)
         .toVector
       )
-    )
+    wordMap(lines)
   }
-  def wordMap(words: Seq[String]) = {
-    words
-    .groupBy(identity)
-    .mapValues(_.size)
-    .toMap
+  def fileWords(files: Seq[String]) = {
+    val maps = files.map(file =>
+      fileFreqMap(file)
+    )
+    reduceSumMaps(maps)
   }
 
   def formatToJson(wordMap: Map[String, Int], indentLevel: Int) = {
@@ -46,18 +79,13 @@ object CliApp {
     def getOptions(flag: String): List[String] = getOptionList(flag, identity)
     
     val inFiles = getPlainOptions
-    //val outFiles = getOptions("--out"))
-
-    val inWords = fileWords(inFiles)
-    println("Words in total: " + inWords.length)
-    val frequencies = wordMap(inWords)
+    println("Infiles: " + inFiles.reduceLeft(_ + "\n" + _))
+    val number = getOptions("--n").map(_.toInt).headOption.getOrElse(20)
+    val frequencies = fileWords(inFiles)
     val top2000 = frequencies
                   .toVector
                   .sortBy(wd => -wd._2)
-                  .take(20)
-    for ((word,count) <- top2000) {
-      println(word + " " + count)
-    }
+                  .take(number)
     val top20formatted = formatToJson(top2000.toMap, 4)
     println(top20formatted)
   }

@@ -3,17 +3,22 @@ package uniquewords
 import scala.io.Source
 import sys.process._
 import scala.reflect.ClassTag
+import scala.collection.mutable.Buffer
 
 object CliApp {
   val alphabet = (('a' to 'z') ++ Vector('ä', 'ö', 'å')).toSet
 
   def reduceSumMaps(maps: Seq[Map[String, Int]]) = {
-    def sumMaps(m1: Map[String, Int], m2: Map[String, Int]) = {
-      val merged = m1.toSeq ++ m2.toSeq
-      val grouped = merged.groupBy(_._1)
-      grouped.mapValues(_.map(_._2).toList.sum).toMap
+    if (maps.length == 0) {
+      Map[String, Int]()
+    } else {
+      def sumMaps(m1: Map[String, Int], m2: Map[String, Int]) = {
+        val merged = m1.toSeq ++ m2.toSeq
+        val grouped = merged.groupBy(_._1)
+        grouped.mapValues(_.map(_._2).toList.sum).toMap
+      }
+      maps.reduceLeft( (x,y) => sumMaps(x,y))
     }
-    maps.reduceLeft( (x,y) => sumMaps(x,y))
   }
 
   def linesWithCodec(filename: String, codec: String): Option[Seq[String]] = {
@@ -36,27 +41,62 @@ object CliApp {
     }
     outlines
   }
-  def wordMap(words: Seq[String]) = {
-    Console.err.println("Count words " + words.take(5))
+  def getWordCounts(words: Seq[String]) = {
     words
     .groupBy(identity)
     .mapValues(_.size)
     .toMap
   }
+  def splitGroupGetFreqs(lines: Seq[String]) = {
+    var result = Buffer[Map[String, Int]]()
+    val chunkSize = 1000000
+    var b = Buffer[String]()
+    var currentString = ""
+    val totalLength = lines.map(_.length).sum
+    var index = 0
+    for (line <- lines) {
+      for (c <- line.toLowerCase()) {
+        if (c == ' ') {
+          b.append(currentString)
+          if (index % 1000 == 0) {
+            Console.err.print("\u001B[A")
+            Console.err.println("\rCharacter n.o. " + index + "/" + totalLength)
+          }
+          currentString = ""
+          if (b.length == chunkSize) {
+            result.append(getWordCounts(b.toVector))
+            b = Buffer[String]()
+          }
+        } else if (alphabet.contains(c)) {
+          currentString += c
+        }
+        index += 1
+      }
+      if (currentString.length > 0) {
+        b.append(currentString)
+        currentString = ""
+        if (b.length == chunkSize) {
+            result.append(getWordCounts(b.toVector))
+            b = Buffer[String]()
+        }
+      }
+    }
+    if (b.length > 0) {
+      result.append(getWordCounts(b.toVector))
+    }
+    result.toVector
+  }
   def fileFreqMap(filename: String) = {
-    Console.err.println("Get words from file " + filename + " ...")
-    val words = fileLines(filename)
-      .flatMap(line =>
-        line
-        .split(" ")
-        .map(word => word.toLowerCase())
-        .filter(word => word.toSet ++ alphabet == alphabet)
-        .filter(word => word.length >= 1)
-        .toVector
-      )
+    Console.err.println("Get lines from file " + filename + " ...")
+    val lines = fileLines(filename)
+    Console.err.println("Process to get words ...")
+    //val words = lines(0).split(' ')
     // Group words to limit memory usage
-    val groupedWords = words.grouped(100000)
-    reduceSumMaps(groupedWords.map(x => wordMap(x)).toVector)
+    Console.err.println("Group words...")
+    val frequencyMaps = splitGroupGetFreqs(lines)
+    //val groupedWords = words.grouped(100000)
+    Console.err.println("Create word count maps...")
+    reduceSumMaps(frequencyMaps)
   }
   def fileWords(files: Seq[String]) = {
     val maps = files.map(file =>

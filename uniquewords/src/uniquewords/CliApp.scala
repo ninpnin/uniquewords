@@ -68,6 +68,7 @@ object CliApp {
     val elemsJson = indent + formattedElems.reduceLeft(_ + ",\n" + indent + _)
     "{\n" + elemsJson + "\n}"
   }
+
   def main(args: Array[String]) {
     def isSwitch(s : String) = (s(0) == '-')
     def getPlainOptions = args.span(!isSwitch(_))._1

@@ -27,6 +27,14 @@ object CliApp {
     .mapValues(_.size)
     .toMap
   }
+
+  def formatToJson(wordMap: Map[String, Int], indentLevel: Int) = {
+    val indent = " " * indentLevel
+    val sortedElems =  wordMap.toVector.sortBy(-_._2)
+    val formattedElems = sortedElems.map(pair => "\"" + pair._1 + "\": " + pair._2)
+    val elemsJson = indent + formattedElems.reduceLeft(_ + ",\n" + indent + _)
+    "{\n" + elemsJson + "\n}"
+  }
   def main(args: Array[String]) {
     def isSwitch(s : String) = (s(0) == '-')
     def getPlainOptions = args.span(!isSwitch(_))._1
@@ -50,5 +58,7 @@ object CliApp {
     for ((word,count) <- top2000) {
       println(word + " " + count)
     }
+    val top20formatted = formatToJson(top2000.toMap, 4)
+    println(top20formatted)
   }
 }
